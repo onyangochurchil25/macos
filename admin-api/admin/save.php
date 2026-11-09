@@ -36,18 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if ($user === '') {
         respond(200, array('auth' => false, 'user' => '', 'writable' => false, 'imgWritable' => false));
     }
-    // Opening the admin page also checks the database and fills it on first use.
+    // Opening the admin page does one quick database check (the first run still creates and fills the tables).
     $db = array('ok' => false);
     try {
-        $seed = seed_all();
-        $pdo = db();
-        $db = array(
-            'ok' => true,
-            'products' => (int) $pdo->query('select count(*) from public.products')->fetchColumn(),
-            'images' => (int) $pdo->query('select count(*) from public.product_images')->fetchColumn(),
-            'backups' => (int) $pdo->query('select count(*) from public.product_backups')->fetchColumn(),
-            'added_now' => $seed
-        );
+        $st = db_status();
+        $db = array('ok' => true, 'products' => $st['products'], 'images' => $st['images'], 'backups' => $st['backups']);
     } catch (Throwable $e) {
         $db['error'] = db_err($e);
         error_log('[macos-admin] save.php GET database check failed: ' . $db['error']);

@@ -13,6 +13,7 @@ body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif
 header{border-bottom:1px solid var(--line);padding:14px 18px}
 .w{max-width:1040px;margin:auto;padding:0 18px 90px}header .w{display:flex;justify-content:space-between;align-items:center;padding:0}
 h1{font-size:1.3rem;margin:0}a{color:var(--brand);font-weight:600}
+[hidden]{display:none!important}.hr{display:flex;align-items:center;gap:14px}
 .bar{margin:16px 0;padding:11px 14px;border-radius:8px;font-weight:600;background:var(--soft)}
 .bar.ok{background:#e3f3e8;color:#0b5d2a}.bar.bad{background:#fde5e5;color:#8a1c1c}
 input,select{font:inherit;color:inherit;background:#fff;border:1px solid var(--line);border-radius:6px;padding:9px 11px;width:100%}
@@ -33,7 +34,7 @@ details{margin-top:22px;border:1px solid var(--line);border-radius:10px;padding:
 </style>
 </head>
 <body>
-<header><div class="w"><h1>Shop admin</h1><a href="../">View the shop</a></div></header>
+<header><div class="w"><h1>Shop admin</h1><span class="hr"><a href="../">View the shop</a><button class="btn alt sm" id="alogout" type="button" hidden>Log out</button></span></div></header>
 <div class="w">
   <div class="bar" id="bar">Checking password protection…</div>
   <p>Change prices, stock and deals, add photos, or delete an item for good, then press Save. The shop shows your changes straight away. To feature an item as a deal, give it a Deal, Hot or New badge, and add a Was price to show a discount.</p>
@@ -128,7 +129,7 @@ async function init(){
   const bar=$("#bar");
   try{
     const s=await (await fetch("save.php",{cache:"no-store"})).json();
-    if(s.auth){authOk=true;bar.className="bar ok";bar.textContent="Password protection is on. You are signed in as "+s.user+"."+(s.writable?"":" Warning: the database is not reachable, so saving will fail. Open save.php for details.")+(s.imgWritable?"":"")}
+    if(s.auth){authOk=true;$("#alogout").hidden=false;bar.className="bar ok";bar.textContent="Password protection is on. You are signed in as "+s.user+"."+(s.writable?"":" Warning: the database is not reachable, so saving will fail. Open save.php for details.")+(s.imgWritable?"":"")}
     else{bar.className="bar bad";bar.textContent="This folder is not password protected yet, so saving and photo upload are switched off. In your hosting control panel, open Directory Privacy, put a password on the admin folder, then reload this page."}
   }catch(e){bar.className="bar bad";bar.textContent="Could not reach save.php. Check that PHP is switched on for your hosting and that all the files were uploaded."}
   try{const r=await fetch("../data/products.json",{cache:"no-store"});if(!r.ok)throw 0;P=await r.json();ready=true}
@@ -174,10 +175,29 @@ $("#asave").addEventListener("click",async()=>{
   try{
     const r=await fetch("save.php",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"macos-admin"},body:JSON.stringify(P),cache:"no-store"});
     let j={};try{j=await r.json()}catch(e){}
-    if(r.ok&&j.ok){dirty.clear();trash.length=0;$("#aundo").disabled=true;m.textContent="Saved. The shop now shows your changes.";return}
+    if(r.ok&&j.ok){
+      let note="Saved to the database ("+j.count+" items).";
+      try{
+        const v=await fetch("../data/products.json",{cache:"no-store"});if(!v.ok)throw 0;
+        const S=await v.json();
+        const same=Array.isArray(S)&&S.length===P.length&&P.every((x,k)=>{const y=S[k];return y&&y.id===x.id&&(y.p||0)===(x.p||0)&&(y.s||"")===(x.s||"")&&(y.b||"")===(x.b||"")&&(y.o||0)===(x.o||0)&&!!y.h===!!x.h&&(y.i||"")===(x.i||"")});
+        if(!same)throw 1;
+        P=S;note+=" Checked: the stored list matches what you saved.";
+      }catch(e2){note+=" Could not re-check the stored list. Reload this page to confirm."}
+      dirty.clear();trash.length=0;$("#aundo").disabled=true;render();m.textContent=note;return}
     m.textContent=j.error||("Could not save (error "+r.status+").");
   }catch(e){m.textContent="Could not reach the server. Check your connection and try again."}
   b.disabled=!(dirty.size&&authOk&&ready);
+});
+// Basic Auth has no real "sign out": send deliberately wrong credentials so the browser
+// forgets the saved ones, then leave. The next visit to /admin/ asks for the password again.
+$("#alogout").addEventListener("click",()=>{
+  if(dirty.size&&!confirm("You have unsaved changes that will be lost. Log out anyway?"))return;
+  dirty.clear();
+  const b=$("#alogout");b.disabled=true;b.textContent="Logging out…";
+  const x=new XMLHttpRequest(),done=()=>location.replace("../");
+  x.open("GET","save.php?logout="+Date.now(),true,"logged-out","logged-out");
+  x.onloadend=done;x.send();
 });
 window.addEventListener("beforeunload",e=>{if(dirty.size){e.preventDefault();e.returnValue=""}});
 init();

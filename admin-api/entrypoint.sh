@@ -2,7 +2,7 @@
 # Runs as root every time the container starts (Render: every deploy / restart).
 set -e
 
-ENTRYPOINT_VERSION="2026-11-09-supabase-r1"
+ENTRYPOINT_VERSION="2026-11-09-supabase-r2"
 
 echo "=== MacOs admin entrypoint ${ENTRYPOINT_VERSION} ==="
 echo "commit=${RENDER_GIT_COMMIT:-unknown} branch=${RENDER_GIT_BRANCH:-unknown} running-as=$(id -un)"

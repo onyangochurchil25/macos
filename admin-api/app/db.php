@@ -33,18 +33,27 @@ function db() {
     $ssl = 'require';
     if (isset($m[6]) && preg_match('/[?&]sslmode=([a-z-]+)/', $m[6], $q)) { $ssl = $q[1]; }
     $dsn = 'pgsql:host=' . $host . ';port=' . $port . ';dbname=' . $name . ';sslmode=' . $ssl . ';connect_timeout=10';
-    $pdo = new PDO($dsn, $user, $pass, array(
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_EMULATE_PREPARES => true,   // required for Supabase's transaction pooler (port 6543)
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ));
+    try {
+        $pdo = new PDO($dsn, $user, $pass, array(
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_EMULATE_PREPARES => true,   // required for Supabase's transaction pooler (port 6543)
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ));
+    } catch (PDOException $e) {
+        $pdo = null;
+        $hint = '';
+        if (stripos($host, 'db.') === 0 && substr($host, -12) === '.supabase.co') {
+            $hint = 'The direct Supabase host (db.xxx.supabase.co) is IPv6-only and Render cannot reach it: use the Session pooler string from Supabase > Connect. ';
+        }
+        throw new RuntimeException($hint . $e->getMessage());
+    }
     return $pdo;
 }
 
 // Short, safe-to-show text for an error.
 function db_err($e) {
     $m = trim(preg_replace('/\s+/', ' ', $e->getMessage()));
-    return strlen($m) > 220 ? substr($m, 0, 220) . '...' : $m;
+    return strlen($m) > 360 ? substr($m, 0, 360) . '...' : $m;
 }
 
 function ensure_schema() {
@@ -102,6 +111,7 @@ function save_products(array $clean) {
     $pdo = db();
     $pdo->beginTransaction();
     try {
+        $pdo->query('select pg_advisory_xact_lock(730114)')->fetchAll();
         $pdo->exec('insert into public.product_backups(data)
                     select jsonb_agg(to_jsonb(p) order by pos, id) from public.products p having count(*) > 0');
         $pdo->exec('delete from public.product_backups
@@ -149,6 +159,32 @@ function get_image($key) {
     $st->execute(array($key));
     $b = $st->fetchColumn();
     return $b === false ? null : base64_decode($b);
+}
+
+// Cheap health check used when the admin page opens: ONE query, no schema changes.
+// Only if the tables are missing (very first run) or the product table is empty does it run seed_all().
+function db_status() {
+    $sql = 'select (select count(*) from public.products) as p,
+                   (select count(*) from public.product_images) as i,
+                   (select count(*) from public.product_backups) as b';
+    $pdo = db();
+    try {
+        $r = $pdo->query($sql)->fetch();
+        if ((int) $r['p'] === 0) { seed_all(); $r = $pdo->query($sql)->fetch(); }
+    } catch (PDOException $e) {
+        if ((string) $e->getCode() !== '42P01') { throw $e; }   // 42P01 = table does not exist yet
+        seed_all();
+        $r = $pdo->query($sql)->fetch();
+    }
+    return array('products' => (int) $r['p'], 'images' => (int) $r['i'], 'backups' => (int) $r['b']);
+}
+
+// When a photo was last stored (unix seconds), or null. Reads no image data, so it is very light.
+function image_version($key) {
+    $st = db()->prepare('select floor(extract(epoch from updated_at))::bigint from public.product_images where key = ?');
+    $st->execute(array($key));
+    $v = $st->fetchColumn();
+    return $v === false ? null : (string) $v;
 }
 
 // First start only: fill the empty tables from the files in the repo.

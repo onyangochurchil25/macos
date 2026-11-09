@@ -17,7 +17,8 @@ COPY img/   /opt/seed-img/
 COPY apache.conf /etc/apache2/conf-available/shop.conf
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 
-RUN a2enconf shop \
+RUN cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+ && a2enconf shop \
  && sed -i 's/\r$//' /usr/local/bin/entrypoint.sh \
  && chmod +x /usr/local/bin/entrypoint.sh \
  && printf '<?php header("Location: /admin/"); exit;\n' > /var/www/html/index.php
