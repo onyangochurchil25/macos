@@ -32,7 +32,11 @@ if (!isset($_SERVER['HTTP_X_REQUESTED_WITH']) || $_SERVER['HTTP_X_REQUESTED_WITH
 if (!empty($_SERVER['HTTP_ORIGIN'])) {
     $originHost = parse_url($_SERVER['HTTP_ORIGIN'], PHP_URL_HOST);
     $thisHost   = preg_replace('/:\d+$/', '', isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '');
-    if (!$originHost || strcasecmp($originHost, $thisHost) !== 0) {
+    // Your own domain is allowed too: it reaches this server through the Vercel /admin rewrite.
+    $okHosts = array($thisHost, 'macostechnologyltd.co.ke', 'www.macostechnologyltd.co.ke');
+    $okOrigin = false;
+    foreach ($okHosts as $h) { if ($originHost && strcasecmp($originHost, $h) === 0) { $okOrigin = true; break; } }
+    if (!$okOrigin) {
         respond(403, array('ok' => false, 'error' => 'The request came from another website.'));
     }
 }
