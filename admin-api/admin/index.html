@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="only light">
+<title>Shop admin | MacOs Technology</title>
+<style>
+:root{--line:#dcdcdc;--muted:#555;--brand:#0b57ff;--soft:#eaf0ff;color-scheme:only light}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#000;background:#fff}
+header{border-bottom:1px solid var(--line);padding:14px 18px}
+.w{max-width:1040px;margin:auto;padding:0 18px 90px}header .w{display:flex;justify-content:space-between;align-items:center;padding:0}
+h1{font-size:1.3rem;margin:0}a{color:var(--brand);font-weight:600}
+.bar{margin:16px 0;padding:11px 14px;border-radius:8px;font-weight:600;background:var(--soft)}
+.bar.ok{background:#e3f3e8;color:#0b5d2a}.bar.bad{background:#fde5e5;color:#8a1c1c}
+input,select{font:inherit;color:inherit;background:#fff;border:1px solid var(--line);border-radius:6px;padding:9px 11px;width:100%}
+.tools{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}.tools input{flex:1 1 220px;width:auto}.tools select{width:auto}
+.btn{border:0;border-radius:6px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer;background:var(--brand);color:#fff;display:inline-block}
+.btn.sm{padding:7px 12px;font-size:.9rem}.btn.alt{background:var(--soft);color:#000}.btn:disabled{opacity:.5;cursor:not-allowed}
+.adel.danger{background:#d92d20;color:#fff}
+.arow{display:grid;grid-template-columns:1fr 120px 130px 110px 120px;gap:12px;align-items:end;padding:12px 0;border-top:1px solid var(--line)}
+.arow small{display:block;color:var(--muted)}label{display:grid;gap:3px;font-size:.88rem;color:var(--muted)}
+.ax{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ahl{display:flex;align-items:center;gap:6px}.ahl input{width:auto}
+.ath{width:44px;height:44px;object-fit:cover;border-radius:6px}.aph{cursor:pointer}
+@media(max-width:760px){.arow{grid-template-columns:1fr 1fr}.arow .an{grid-column:1/-1}}
+.savebar{position:sticky;bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-top:16px;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+details{margin-top:22px;border:1px solid var(--line);border-radius:10px;padding:12px 16px}summary{cursor:pointer;font-weight:700}
+.g{display:grid;gap:10px;margin-top:12px;grid-template-columns:1fr 1fr}@media(max-width:560px){.g{grid-template-columns:1fr}}
+.msg{color:var(--muted);min-height:1.4em}
+</style>
+</head>
+<body>
+<header><div class="w"><h1>Shop admin</h1><a href="../">View the shop</a></div></header>
+<div class="w">
+  <div class="bar" id="bar">Checking password protection…</div>
+  <p>Change prices, stock and deals, add photos, or delete an item for good, then press Save. The shop shows your changes straight away. To feature an item as a deal, give it a Deal, Hot or New badge, and add a Was price to show a discount.</p>
+  <div class="tools">
+    <input id="aq" type="search" placeholder="Search items" aria-label="Search items">
+    <select id="ac" aria-label="Category"><option value="">All categories</option></select>
+    <button class="btn alt" id="adl" type="button">Download a backup copy</button>
+  </div>
+  <div id="arows">Loading…</div>
+  <details><summary>Add a new item</summary>
+    <div class="g">
+      <label>Category<select id="nc"></select></label>
+      <label>Name<input id="nn"></label>
+      <label>Specifications<input id="nd" placeholder="Core i5 8th gen, 8GB RAM, 256GB SSD"></label>
+      <label>Price (KES)<input id="np" type="number" min="0" inputmode="numeric"></label>
+      <label>Photo (optional)<input id="nf" type="file" accept="image/*"></label>
+    </div>
+    <p><button class="btn alt" id="aadd" type="button">Add item</button> <small id="amsg"></small></p>
+  </details>
+  <p class="msg" id="amsg2"></p>
+  <div class="savebar"><span id="acount">No changes yet</span><span><button class="btn alt" id="aundo" type="button" disabled>Undo delete</button> <button class="btn" id="asave" type="button" disabled>Save to the shop</button></span></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const CATS=["HP laptops","Dell laptops","Lenovo laptops","Other laptops","MacBooks and iMac","All-in-one PCs","Tablets","Printers","Mice and keyboards","Flash disks","Accessories"];
+const SOPT=[["","In stock"],["low","Few left"],["out","Out of stock"]];
+const BOPT=[["","None"],["deal","Deal"],["hot","Hot"],["new","New"]];
+let P=[],ready=false,authOk=false,seq=0,delArm=0,delT=null;
+const dirty=new Set(),trash=[];
+$("#ac").insertAdjacentHTML("beforeend",CATS.map(c=>`<option>${c}</option>`).join(""));
+$("#nc").innerHTML=CATS.map(c=>`<option>${c}</option>`).join("");
+const usesFor=(c,p)=>(c==="Printers"?["work","print"]:/Flash|Mice|Accessories|Tablets/.test(c)?["study","work"]:/Mac|All-in-one/.test(c)?["work"].concat(p&&p<=45000?["study"]:[]):["work"].concat(p<=40000?["study"]:[])).join(" ");
+const newKey=()=>"p"+(Math.floor(Date.now()/1000)*10+(seq++%10));
+function acount(){const n=dirty.size;$("#acount").textContent=n?n+(n===1?" item changed":" items changed"):"No changes yet";$("#asave").disabled=!(n&&authOk&&ready)}
+function arows(){
+  const q=$("#aq").value.trim().toLowerCase(),c=$("#ac").value;
+  return P.filter(x=>(!c||x.c===c)&&(x.n+" "+x.d).toLowerCase().includes(q)).map(x=>`<div class="arow" data-aid="${x.id}"><div class="an"><b>${esc(x.n)}</b><small>${esc(x.d||x.c)}</small></div><label>Price (KES)<input class="ap" type="number" min="0" step="100" inputmode="numeric" value="${x.p||""}" placeholder="Ask for price"></label><label>Stock<select class="as">${SOPT.map(([v,t])=>`<option value="${v}"${(x.s||"")===v?" selected":""}>${t}</option>`).join("")}</select></label><label>Badge<select class="ab">${BOPT.map(([v,t])=>`<option value="${v}"${(x.b||"")===v?" selected":""}>${t}</option>`).join("")}</select></label><label>Was price<input class="ao" type="number" min="0" step="100" inputmode="numeric" value="${x.o||""}" placeholder="Optional"></label><div class="ax"><label class="ahl"><input class="ahid" type="checkbox"${x.h?" checked":""}>Hide from the shop</label>${x.i?`<img class="ath" src="../img/${esc(x.i)}.jpg" alt="">`:""}<label class="btn alt sm aph">${x.i?"Change photo":"Add photo"}<input type="file" accept="image/*" data-ph="${x.id}" hidden></label>${x.i?`<button class="btn alt sm" type="button" data-rph="${x.id}">Remove photo</button>`:""}<button class="btn alt sm adel" type="button" data-del="${x.id}">Delete</button></div></div>`).join("")||"<p>No items match.</p>";
+}
+function render(){$("#arows").innerHTML=arows();acount()}
+function packBlob(file,max=560,q=.78){
+  return new Promise((res,rej)=>{
+    if(!file||!/^image\//.test(file.type))return rej(new Error("type"));
+    if(file.size>25*1048576)return rej(new Error("size"));
+    const fr=new FileReader();fr.onerror=()=>rej(new Error("read"));
+    fr.onload=()=>{
+      const im=new Image();im.onerror=()=>rej(new Error("read"));
+      im.onload=()=>{
+        const s=Math.min(1,max/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*s)),h=Math.max(1,Math.round(im.height*s));
+        const c=document.createElement("canvas");c.width=w;c.height=h;
+        const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,w,h);g.drawImage(im,0,0,w,h);
+        c.toBlob(b=>b?res(b):rej(new Error("read")),"image/jpeg",q);
+      };
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+async function uploadPhoto(key,file){
+  const blob=await packBlob(file);
+  const r=await fetch("upload.php",{method:"POST",headers:{"X-Requested-With":"macos-admin","X-Photo-Key":key,"Content-Type":"image/jpeg"},body:blob,cache:"no-store"});
+  let j={};try{j=await r.json()}catch(e){}
+  if(!(r.ok&&j.ok))throw new Error(j.error||("The photo could not be uploaded (error "+r.status+")."));
+}
+const photoMsg=e=>e&&e.message==="size"?"That photo is too large. Choose one under 25 MB.":e&&e.message==="type"?"Please choose an image file (a JPEG or PNG photo).":e&&e.message==="read"?"Could not read that photo. Try a different one.":(e&&e.message)||"The photo could not be uploaded.";
+async function attachPhoto(id,file){
+  const x=P.find(p=>p.id===id);if(!x||!file)return;
+  if(!authOk){$("#amsg2").textContent="Photo upload is off until the admin folder is password protected.";return}
+  $("#amsg2").textContent="Uploading photo…";
+  try{const k=newKey();await uploadPhoto(k,file);x.i=k;dirty.add(id);render();$("#amsg2").textContent="Photo added to “"+x.n+"”. Press Save to put it on the shop."}
+  catch(e){$("#amsg2").textContent=photoMsg(e)}
+}
+function removePhoto(id){const x=P.find(p=>p.id===id);if(!x||!x.i)return;delete x.i;dirty.add(id);render();$("#amsg2").textContent="Photo removed from “"+x.n+"”. Press Save to put the change on the shop."}
+function delItem(id,btn){
+  if(delArm!==id){
+    delArm=id;clearTimeout(delT);
+    document.querySelectorAll(".adel").forEach(b=>{b.textContent="Delete";b.classList.remove("danger")});
+    btn.textContent="Tap again to delete";btn.classList.add("danger");
+    delT=setTimeout(()=>{delArm=0;btn.textContent="Delete";btn.classList.remove("danger")},4000);return;
+  }
+  clearTimeout(delT);delArm=0;
+  const i=P.findIndex(p=>p.id===id);if(i<0)return;
+  const x=P.splice(i,1)[0];trash.push({x,i});dirty.add(id);render();
+  $("#amsg2").textContent="Deleted “"+x.n+"”. It leaves the shop when you press Save.";$("#aundo").disabled=false;
+}
+function undoDel(){
+  const t=trash.pop();if(!t)return;
+  P.splice(Math.min(t.i,P.length),0,t.x);render();
+  $("#amsg2").textContent="Restored “"+t.x.n+"”.";$("#aundo").disabled=!trash.length;
+}
+async function init(){
+  const bar=$("#bar");
+  try{
+    const s=await (await fetch("save.php",{cache:"no-store"})).json();
+    if(s.auth){authOk=true;bar.className="bar ok";bar.textContent="Password protection is on. You are signed in as "+s.user+"."+(s.writable?"":" Warning: the data folder cannot be written to, so saving will fail.")+(s.imgWritable?"":" Warning: the img folder cannot be written to, so photo upload will fail.")}
+    else{bar.className="bar bad";bar.textContent="This folder is not password protected yet, so saving and photo upload are switched off. In your hosting control panel, open Directory Privacy, put a password on the admin folder, then reload this page."}
+  }catch(e){bar.className="bar bad";bar.textContent="Could not reach save.php. Check that PHP is switched on for your hosting and that all the files were uploaded."}
+  try{const r=await fetch("../data/products.json",{cache:"no-store"});if(!r.ok)throw 0;P=await r.json();ready=true}
+  catch(e){$("#arows").textContent="Could not load the product list (data/products.json).";return}
+  render();
+}
+document.addEventListener("input",e=>{
+  const t=e.target;
+  if(t.type==="file"){const f=t.files&&t.files[0];if(!f||!t.dataset||!t.dataset.ph)return;attachPhoto(+t.dataset.ph,f);t.value="";return}
+  if(t.id==="aq"||t.id==="ac"){$("#arows").innerHTML=arows();return}
+  if(!t.closest)return;const r=t.closest(".arow");if(!r)return;
+  const x=P.find(p=>p.id===+r.dataset.aid);if(!x)return;
+  if(t.classList.contains("ap"))x.p=Math.max(0,Math.round(+t.value)||0);
+  else if(t.classList.contains("as")){if(t.value)x.s=t.value;else delete x.s}
+  else if(t.classList.contains("ab")){if(t.value)x.b=t.value;else delete x.b}
+  else if(t.classList.contains("ao")){const v=Math.max(0,Math.round(+t.value)||0);if(v)x.o=v;else delete x.o}
+  else if(t.classList.contains("ahid")){if(t.checked)x.h=1;else delete x.h}
+  else return;
+  dirty.add(x.id);acount();
+});
+document.addEventListener("click",e=>{
+  const b=e.target.closest&&e.target.closest("button");if(!b||!b.dataset)return;
+  if(b.dataset.del)delItem(+b.dataset.del,b);else if(b.dataset.rph)removePhoto(+b.dataset.rph);
+});
+$("#aundo").addEventListener("click",undoDel);
+$("#aadd").addEventListener("click",async()=>{
+  const c=$("#nc").value,n=$("#nn").value.trim(),d=$("#nd").value.trim(),p=Math.max(0,Math.round(+$("#np").value)||0),f=$("#nf").files&&$("#nf").files[0],m=$("#amsg");
+  if(!n){m.textContent="Please enter a name.";return}
+  if(/[<>"`]/.test(n+d)){m.textContent="Please avoid the characters < > \" and the backtick in the name or specifications.";return}
+  const id=Math.max(0,...P.map(x=>x.id))+1,item={id,n,d,c,p,u:usesFor(c,p)};
+  if(f){
+    if(!authOk){m.textContent="Photo upload is off until the admin folder is password protected.";return}
+    m.textContent="Uploading photo…";
+    try{const k=newKey();await uploadPhoto(k,f);item.i=k}catch(e){m.textContent=photoMsg(e);return}
+  }
+  P.push(item);dirty.add(id);render();
+  ["#nn","#nd","#np"].forEach(q=>{$(q).value=""});$("#nf").value="";
+  m.textContent="Added"+(item.i?" with its photo":"")+". Press Save to put it on the shop.";
+});
+$("#adl").addEventListener("click",()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(P,null,1)],{type:"application/json"}));a.download="products-backup.json";a.click()});
+$("#asave").addEventListener("click",async()=>{
+  const b=$("#asave"),m=$("#acount");b.disabled=true;m.textContent="Saving…";
+  try{
+    const r=await fetch("save.php",{method:"POST",headers:{"Content-Type":"application/json","X-Requested-With":"macos-admin"},body:JSON.stringify(P),cache:"no-store"});
+    let j={};try{j=await r.json()}catch(e){}
+    if(r.ok&&j.ok){dirty.clear();trash.length=0;$("#aundo").disabled=true;m.textContent="Saved. The shop now shows your changes.";return}
+    m.textContent=j.error||("Could not save (error "+r.status+").");
+  }catch(e){m.textContent="Could not reach the server. Check your connection and try again."}
+  b.disabled=!(dirty.size&&authOk&&ready);
+});
+window.addEventListener("beforeunload",e=>{if(dirty.size){e.preventDefault();e.returnValue=""}});
+init();
+</script>
+</body>
+</html>
