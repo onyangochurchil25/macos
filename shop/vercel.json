@@ -2,5 +2,10 @@
   "cleanUrls": true,
   "headers": [
     { "source": "/img/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }] }
+  ],
+  "rewrites": [
+    { "source": "/admin", "destination": "https://macos-d4yv.onrender.com/admin/" },
+    { "source": "/admin/", "destination": "https://macos-d4yv.onrender.com/admin/" },
+    { "source": "/admin/:path*", "destination": "https://macos-d4yv.onrender.com/admin/:path*" }
   ]
 }

@@ -58,6 +58,7 @@ details{margin-top:22px;border:1px solid var(--line);border-radius:10px;padding:
   <div class="savebar"><span id="acount">No changes yet</span><span><button class="btn alt" id="aundo" type="button" disabled>Undo delete</button> <button class="btn" id="asave" type="button" disabled>Save to the shop</button></span></div>
 </div>
 <script>
+const API="https://macos-d4yv.onrender.com/"; // Render server: product list and photos load from here, so the page also works at your own domain
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const CATS=["HP laptops","Dell laptops","Lenovo laptops","Other laptops","MacBooks and iMac","All-in-one PCs","Tablets","Printers","Mice and keyboards","Flash disks","Accessories"];
@@ -72,7 +73,7 @@ const newKey=()=>"p"+(Math.floor(Date.now()/1000)*10+(seq++%10));
 function acount(){const n=dirty.size;$("#acount").textContent=n?n+(n===1?" item changed":" items changed"):"No changes yet";$("#asave").disabled=!(n&&authOk&&ready)}
 function arows(){
   const q=$("#aq").value.trim().toLowerCase(),c=$("#ac").value;
-  return P.filter(x=>(!c||x.c===c)&&(x.n+" "+x.d).toLowerCase().includes(q)).map(x=>`<div class="arow" data-aid="${x.id}"><div class="an"><b>${esc(x.n)}</b><small>${esc(x.d||x.c)}</small></div><label>Price (KES)<input class="ap" type="number" min="0" step="100" inputmode="numeric" value="${x.p||""}" placeholder="Ask for price"></label><label>Stock<select class="as">${SOPT.map(([v,t])=>`<option value="${v}"${(x.s||"")===v?" selected":""}>${t}</option>`).join("")}</select></label><label>Badge<select class="ab">${BOPT.map(([v,t])=>`<option value="${v}"${(x.b||"")===v?" selected":""}>${t}</option>`).join("")}</select></label><label>Was price<input class="ao" type="number" min="0" step="100" inputmode="numeric" value="${x.o||""}" placeholder="Optional"></label><div class="ax"><label class="ahl"><input class="ahid" type="checkbox"${x.h?" checked":""}>Hide from the shop</label>${x.i?`<img class="ath" src="../img/${esc(x.i)}.jpg" alt="">`:""}<label class="btn alt sm aph">${x.i?"Change photo":"Add photo"}<input type="file" accept="image/*" data-ph="${x.id}" hidden></label>${x.i?`<button class="btn alt sm" type="button" data-rph="${x.id}">Remove photo</button>`:""}<button class="btn alt sm adel" type="button" data-del="${x.id}">Delete</button></div></div>`).join("")||"<p>No items match.</p>";
+  return P.filter(x=>(!c||x.c===c)&&(x.n+" "+x.d).toLowerCase().includes(q)).map(x=>`<div class="arow" data-aid="${x.id}"><div class="an"><b>${esc(x.n)}</b><small>${esc(x.d||x.c)}</small></div><label>Price (KES)<input class="ap" type="number" min="0" step="100" inputmode="numeric" value="${x.p||""}" placeholder="Ask for price"></label><label>Stock<select class="as">${SOPT.map(([v,t])=>`<option value="${v}"${(x.s||"")===v?" selected":""}>${t}</option>`).join("")}</select></label><label>Badge<select class="ab">${BOPT.map(([v,t])=>`<option value="${v}"${(x.b||"")===v?" selected":""}>${t}</option>`).join("")}</select></label><label>Was price<input class="ao" type="number" min="0" step="100" inputmode="numeric" value="${x.o||""}" placeholder="Optional"></label><div class="ax"><label class="ahl"><input class="ahid" type="checkbox"${x.h?" checked":""}>Hide from the shop</label>${x.i?`<img class="ath" src="${API}img/${esc(x.i)}.jpg" alt="">`:""}<label class="btn alt sm aph">${x.i?"Change photo":"Add photo"}<input type="file" accept="image/*" data-ph="${x.id}" hidden></label>${x.i?`<button class="btn alt sm" type="button" data-rph="${x.id}">Remove photo</button>`:""}<button class="btn alt sm adel" type="button" data-del="${x.id}">Delete</button></div></div>`).join("")||"<p>No items match.</p>";
 }
 function render(){$("#arows").innerHTML=arows();acount()}
 function packBlob(file,max=560,q=.78){
@@ -132,7 +133,7 @@ async function init(){
     if(s.auth){authOk=true;$("#alogout").hidden=false;bar.className="bar ok";bar.textContent="Password protection is on. You are signed in as "+s.user+"."+(s.writable?"":" Warning: the database is not reachable, so saving will fail. Open save.php for details.")+(s.imgWritable?"":"")}
     else{bar.className="bar bad";bar.textContent="This folder is not password protected yet, so saving and photo upload are switched off. In your hosting control panel, open Directory Privacy, put a password on the admin folder, then reload this page."}
   }catch(e){bar.className="bar bad";bar.textContent="Could not reach save.php. Check that PHP is switched on for your hosting and that all the files were uploaded."}
-  try{const r=await fetch("../data/products.json",{cache:"no-store"});if(!r.ok)throw 0;P=await r.json();ready=true}
+  try{const r=await fetch(API+"data/products.json",{cache:"no-store"});if(!r.ok)throw 0;P=await r.json();ready=true}
   catch(e){$("#arows").textContent="Could not load the product list (data/products.json).";return}
   render();
 }
@@ -178,7 +179,7 @@ $("#asave").addEventListener("click",async()=>{
     if(r.ok&&j.ok){
       let note="Saved to the database ("+j.count+" items).";
       try{
-        const v=await fetch("../data/products.json",{cache:"no-store"});if(!v.ok)throw 0;
+        const v=await fetch(API+"data/products.json",{cache:"no-store"});if(!v.ok)throw 0;
         const S=await v.json();
         const same=Array.isArray(S)&&S.length===P.length&&P.every((x,k)=>{const y=S[k];return y&&y.id===x.id&&(y.p||0)===(x.p||0)&&(y.s||"")===(x.s||"")&&(y.b||"")===(x.b||"")&&(y.o||0)===(x.o||0)&&!!y.h===!!x.h&&(y.i||"")===(x.i||"")});
         if(!same)throw 1;
