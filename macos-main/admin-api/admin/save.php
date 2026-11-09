@@ -1,9 +1,11 @@
 <?php
 // MacOs Technology admin: saves the product list.
 // This file lives inside the password-protected "admin" folder.
+// Products are stored in Supabase (see /opt/app/db.php).
 ini_set('display_errors', '0');
 error_reporting(0);
 date_default_timezone_set('Africa/Nairobi');
+require '/opt/app/db.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
@@ -30,15 +32,29 @@ foreach (array('REMOTE_USER', 'REDIRECT_REMOTE_USER', 'PHP_AUTH_USER') as $key) 
     if (!empty($_SERVER[$key])) { $user = $_SERVER[$key]; break; }
 }
 
-$dataFile  = dirname(__DIR__) . '/data/products.json';
-$dataDir   = dirname($dataFile);
-$imgDir    = dirname(__DIR__) . '/img';
-$backupDir = __DIR__ . '/backups';
-
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $writable = is_dir($dataDir) && is_writable($dataDir) && (!file_exists($dataFile) || is_writable($dataFile));
-    $imgWritable = is_dir($imgDir) && is_writable($imgDir);
-    respond(200, array('auth' => ($user !== ''), 'user' => $user, 'writable' => $writable, 'imgWritable' => $imgWritable));
+    if ($user === '') {
+        respond(200, array('auth' => false, 'user' => '', 'writable' => false, 'imgWritable' => false));
+    }
+    // Opening the admin page also checks the database and fills it on first use.
+    $db = array('ok' => false);
+    try {
+        $seed = seed_all();
+        $pdo = db();
+        $db = array(
+            'ok' => true,
+            'products' => (int) $pdo->query('select count(*) from public.products')->fetchColumn(),
+            'images' => (int) $pdo->query('select count(*) from public.product_images')->fetchColumn(),
+            'backups' => (int) $pdo->query('select count(*) from public.product_backups')->fetchColumn(),
+            'added_now' => $seed
+        );
+    } catch (Throwable $e) {
+        $db['error'] = db_err($e);
+        error_log('[macos-admin] save.php GET database check failed: ' . $db['error']);
+    }
+    $build = @trim((string) @file_get_contents('/etc/macos-build'));
+    respond(200, array('auth' => true, 'user' => $user, 'writable' => $db['ok'], 'imgWritable' => $db['ok'],
+                       'storage' => 'supabase', 'db' => $db, 'build' => $build));
 }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     respond(405, array('ok' => false, 'error' => 'Method not allowed.'));
@@ -105,23 +121,11 @@ foreach ($list as $x) {
 $json = json_encode($clean, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 if ($json === false) { bad('The list could not be saved because of an unusual character.'); }
 
-// Keep the previous version (newest 30 are kept) so a mistake can be undone.
-if (!is_dir($backupDir)) { @mkdir($backupDir, 0755, true); }
-if (is_file($dataFile) && is_dir($backupDir)) {
-    @copy($dataFile, $backupDir . '/products-' . date('Ymd-His') . '.json');
-}
-$old = glob($backupDir . '/products-*.json');
-if (is_array($old) && count($old) > 30) {
-    sort($old);
-    foreach (array_slice($old, 0, count($old) - 30) as $f) { @unlink($f); }
-}
-
-$tmp = $dataFile . '.tmp';
-if (file_put_contents($tmp, $json, LOCK_EX) === false) {
-    respond(500, array('ok' => false, 'error' => 'Could not write the file. Ask your host to make the data folder writable.'));
-}
-if (!@rename($tmp, $dataFile)) {
-    @unlink($tmp);
-    respond(500, array('ok' => false, 'error' => 'Could not replace the products file. Ask your host to make the data folder writable.'));
+// Save to Supabase in one transaction; the previous list is kept as a backup (newest 30).
+try {
+    save_products($clean);
+} catch (Throwable $e) {
+    error_log('[macos-admin] save.php database write failed: ' . db_err($e));
+    respond(500, array('ok' => false, 'error' => 'Could not save to the database (' . db_err($e) . ').'));
 }
 respond(200, array('ok' => true, 'count' => count($clean)));

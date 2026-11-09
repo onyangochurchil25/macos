@@ -1,11 +1,14 @@
 <?php
 // MacOs Technology admin: stores one product photo in the "img" folder.
 // This file lives inside the password-protected "admin" folder.
+// Photos are stored in Supabase (see /opt/app/db.php).
 ini_set('display_errors', '0');
 error_reporting(0);
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
+
+require '/opt/app/db.php';
 
 function respond($code, $data) {
     http_response_code($code);
@@ -48,17 +51,10 @@ if (!$info || $info[2] !== IMAGETYPE_JPEG || $info[0] > 4000 || $info[1] > 4000)
     respond(400, array('ok' => false, 'error' => 'Please send a JPEG photo.'));
 }
 
-$dir = dirname(__DIR__) . '/img';
-if (!is_dir($dir) || !is_writable($dir)) {
-    respond(500, array('ok' => false, 'error' => 'The img folder cannot be written to. Ask your host to make it writable.'));
-}
-$tmp  = $dir . '/' . $key . '.tmp';
-$dest = $dir . '/' . $key . '.jpg';
-if (file_put_contents($tmp, $raw, LOCK_EX) === false) {
-    respond(500, array('ok' => false, 'error' => 'Could not store the photo.'));
-}
-if (!@rename($tmp, $dest)) {
-    @unlink($tmp);
-    respond(500, array('ok' => false, 'error' => 'Could not store the photo.'));
+try {
+    save_image($key, $raw);
+} catch (Throwable $e) {
+    error_log('[macos-admin] upload.php database write failed: ' . db_err($e));
+    respond(500, array('ok' => false, 'error' => 'The photo could not be stored (' . db_err($e) . ').'));
 }
 respond(200, array('ok' => true, 'key' => $key));

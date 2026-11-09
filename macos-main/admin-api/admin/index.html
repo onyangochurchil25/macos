@@ -128,7 +128,7 @@ async function init(){
   const bar=$("#bar");
   try{
     const s=await (await fetch("save.php",{cache:"no-store"})).json();
-    if(s.auth){authOk=true;bar.className="bar ok";bar.textContent="Password protection is on. You are signed in as "+s.user+"."+(s.writable?"":" Warning: the data folder cannot be written to, so saving will fail.")+(s.imgWritable?"":" Warning: the img folder cannot be written to, so photo upload will fail.")}
+    if(s.auth){authOk=true;bar.className="bar ok";bar.textContent="Password protection is on. You are signed in as "+s.user+"."+(s.writable?"":" Warning: the database is not reachable, so saving will fail. Open save.php for details.")+(s.imgWritable?"":"")}
     else{bar.className="bar bad";bar.textContent="This folder is not password protected yet, so saving and photo upload are switched off. In your hosting control panel, open Directory Privacy, put a password on the admin folder, then reload this page."}
   }catch(e){bar.className="bar bad";bar.textContent="Could not reach save.php. Check that PHP is switched on for your hosting and that all the files were uploaded."}
   try{const r=await fetch("../data/products.json",{cache:"no-store"});if(!r.ok)throw 0;P=await r.json();ready=true}
